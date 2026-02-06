@@ -1,0 +1,16 @@
+[binaries]
+c = 'gcc'
+cpp = 'g++'
+ar = 'ar'
+strip = 'strip'
+objcopy = 'objcopy'
+ld = 'ld'
+
+[host_machine]
+system = 'none'
+cpu_family = 'x86'
+cpu = 'i686'
+endian = 'little'
+
+[properties]
+skip_sanity_check = true

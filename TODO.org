@@ -1,0 +1,237 @@
+#+title: TODO.org
+
+We don't really have to implement the full libc, but it's good to track it.
+
+* TODO Stdlib [0/8]
+
+** TODO Type Conversion [0/6]
+   - [ ] double =atof= (const char *__nptr);
+   - [ ] int =atoi= (const char *__nptr);
+   - [ ] long int =atol= (const char *__nptr);
+   - [ ] float =strtof= (const char *__restrict __nptr, char **__restrict __endptr);
+   - [ ] long double =strtold= (const char *__restrict __nptr, char **__restrict __endptr);
+   - [ ] unsigned long int =strtoul= (const char *__restrict __nptr, char **__restrict __endptr, int __base);
+
+** TODO PRNG [0/2]
+   - [ ] int =rand= (void);
+   - [ ] void =srand= (unsigned int __seed);
+
+** TODO Memory Allocation [0/4]
+   - [ ] void =*calloc= (size_t __nmemb, size_t __size) __THROW __attribute_malloc__ __attribute_alloc_size__ ((1, 2)) __wur;
+   - [ ] void =*malloc= (size_t __size) __THROW __attribute_malloc__ __attribute_alloc_size__ ((1)) __wur;
+   - [ ] void =*realloc= (void *__ptr, size_t __size) __THROW __attribute_warn_unused_result__ __attribute_alloc_size__ ((2));
+   - [ ] void =free= (void *__ptr) __THROW;
+
+** TODO Process Management [0/6]
+   - [ ] void =abort= (void) __THROW __attribute__ ((__noreturn__)) __COLD;
+   - [ ] int =atexit= (void (*__func) (void)) __THROW __nonnull ((1));
+   - [ ] void =exit= (int __status) __THROW __attribute__ ((__noreturn__));
+   - [ ] char =*getenv= (const char *__name) __THROW __nonnull ((1)) __wur;
+   - [ ] int =system= (const char *__command) __wur;
+
+** TODO Search and Ordering [0/2]
+   - [ ] void =*bsearch= (const void *__key, const void *__base, size_t __nmemb, size_t __size, __compar_fn_t __compar) __nonnull ((1, 2, 5)) __wur;
+   - [ ] void =qsort= (void *__base, size_t __nmemb, size_t __size, __compar_fn_t __compar) __nonnull ((1, 4));
+
+** TODO To declare only [0/4]
+    - [ ] int =abs= (int __x) __THROW __attribute__ ((__const__)) __wur;
+    - [ ] long int =labs= (long int __x) __THROW __attribute__ ((__const__)) __wur;
+    - [ ] div_t =div= (int __numer, int __denom) __THROW __attribute__ ((__const__)) __wur;
+    - [ ] ldiv_t =ldiv= (long int __numer, long int __denom) __THROW __attribute__ ((__const__)) __wur;
+
+** TODO Constants [0/4]
+    - [ ] #define =__need_NULL= (then =#include <stddef.h>=)
+    - [ ] #define =EXIT_FAILURE= 1
+    - [ ] #define =EXIT_SUCCESS= 0
+    - [ ] #define =RAND_MAX= 2147483647
+
+** TODO Types [0/3]
+   - [ ] #define __need_size_t (then =#include <stddef.h>=)
+   - [ ] div_t
+   - [ ] ldiv_t
+
+* TODO String.h [0/3]
+
+** TODO Constants and Types [0/2]
+   - [ ] #define =__need_NULL= (then =#include <stddef.h>=)
+   - [ ] #define __need_size_t (then =#include <stddef.h>=)
+
+** TODO Functions [0/22]
+   - [ ] void *memcpy(void *dest, const void *src, size_t n);
+   - [ ] void *memmove(void *dest, const void *src, size_t n);
+   - [ ] void *memchr(const void *s, int c, size_t n);
+   - [ ] int memcmp (const void *s1, const void *s2, size_t n);
+   - [ ] void *memset(void *s, int c, size_t n);
+   - [ ] char *strcat(char *dest, const char *src);
+   - [ ] char *strncat(char *dest, const char *src, size_t n);
+   - [ ] char *strchr(const char *s, int c);
+   - [ ] char *strrchr(const char *s, int c);
+   - [ ] int strcmp(const char *s1, const char *s2);
+   - [ ] int strncmp(const char *, const char *, size_t);
+   - [ ] int strcoll(const char *, const char *);
+   - [ ] char *strcpy(char *s1, const char *s2);
+   - [ ] char *strncpy(char *s1, const char *s2, size_t n);
+   - [ ] char *strerror(int n);
+   - [ ] size_t strlen(const char *s);
+   - [ ] size_t strspn(const char *s, const char *accept);
+   - [ ] size_t strcspn(const char *s, const char *reject);
+   - [ ] char *strpbrk(const char *s, const char *accept);
+   - [ ] char *strstr(const char *haystack, const char *needle);
+   - [ ] char *strtok(char *s, const char *delimiters);
+   - [ ] size_t strxfrm(char *dest, const char *src, size_t n);
+
+** TODO ISO C Function Extensions [0/8]
+   - [ ] char *strdup(const char *);
+   - [ ] errno_t strcpy_s(char *restrict s1, rsize_t s1max, const char *restrict s2);
+   - [ ] void *mempcpy(void *dest, const void *src, size_t n);
+   - [ ] void *memccpy(void *dest, const void *src, int c, size_t n);
+   - [ ] int *strerror_r(int, char *, size_t);
+   - [ ] size_t strlcpy(char *dest, const char *src, size_t n);
+   - [ ] char *strtok_r(char *, const char *, char **);
+   - [ ] char *strsignal(int sig);
+
+* TODO Stdio.h [0/5]
+
+** TODO File manipulation [0/11]
+  - [ ] int fclose (FILE *__stream);
+  - [ ] FILE *fopen (const char *__restrict __filename,
+  - [ ]          const char *__restrict __modes);
+  - [ ] FILE *freopen (const char *__restrict __filename,
+  - [ ]                const char *__restrict __modes,
+  - [ ]                FILE *__restrict __stream);
+  - [ ] FILE *fdopen (int __fd, const char *__modes);
+  - [ ] int remove (const char *__filename);
+  - [ ] int rename (const char *__old, const char *__new);
+  - [ ] void rewind (FILE *__stream);
+  - [ ] FILE *tmpfile (void);
+
+** TODO IO Manipulation [0/29]
+  - [ ] void clearerr (FILE *__stream);
+  - [ ] int feof (FILE *__stream);
+  - [ ] int ferror (FILE *__stream);
+  - [ ] int fflush (FILE *__stream);
+  - [ ] int fgetpos (FILE *__restrict __stream, fpos_t *__restrict __pos);
+  - [ ] int fgetc (FILE *__stream);
+  - [ ] char *fgets (char *__restrict __s, int __n, FILE *__restrict __stream);
+  - [ ] int fputs (const char *__restrict __s, FILE *__restrict __stream);
+  - [ ] long int ftell (FILE *__stream);
+  - [ ] int fseek (FILE *__stream, long int __off, int __whence);
+  - [ ] int fsetpos (FILE *__stream, const fpos_t *__pos);
+  - [ ] size_t fread (void *__restrict __ptr, size_t __size,
+  - [ ]              size_t __n, FILE *__restrict __stream);
+  - [ ] size_t fwrite (const void *__restrict __ptr, size_t __size,
+  - [ ]               size_t __n, FILE *__restrict __s);
+  - [ ] int getc (FILE *__stream);
+  - [ ] int ungetc (int __c, FILE *__stream);
+  - [ ] int getchar (void);
+  - [ ] int printf (const char *__restrict __format, ...);
+  - [ ] int fprintf (FILE *__restrict __stream,
+  - [ ]             const char *__restrict __format, ...);
+  - [ ] int sprintf (char *__restrict __s,
+  - [ ]             const char *__restrict __format, ...);
+  - [ ] int snprintf (char *__restrict __s, size_t __maxlen,
+  - [ ]              const char *__restrict __format, ...);
+  - [ ] int vfprintf (FILE *__restrict __s, const char *__restrict __format,
+  - [ ]              __gnuc_va_list __arg);
+  - [ ] void perror (const char *__s);
+  - [ ] int puts (const char *__s);
+
+** TODO Costants [0/13]
+  - [ ] EOF
+  - [ ] BUFSIZ
+  - [ ] FILENAME_MAX
+  - [ ] FOPEN_MAX
+  - [ ] _IOFBF
+  - [ ] _IOLBF
+  - [ ] _IONBF
+  - [ ] L_tmpnam
+  - [ ] #define =__need_NULL= (then =#include <stddef.h>=)
+  - [ ] SEEK_CUR
+  - [ ] SEEK_END
+  - [ ] SEEK_SET
+  - [ ] TMP_MAX
+
+** TODO Variables [0/3]
+  - [ ] stdin
+  - [ ] stdout
+  - [ ] stderr
+
+** TODO Types [0/3]
+  - [ ] fpos_t
+  - [ ] size_t
+  - [ ] FILE
+
+* DONE Math.h [21/21]
+  CLOSED: [2026-01-06 Tue 17:35]
+  - [X] double acos(double x);
+  - [X] double asin(double x);
+  - [X] double atan(double x);
+  - [X] double atan2(double y, double x);
+  - [X] double ceil(double x);
+  - [X] double cos(double x);
+  - [X] double cosh(double x);
+  - [X] double exp(double x);
+  - [X] double fabs(double x);
+  - [X] double floor(double x);
+  - [X] double fmod(double x, double y);
+  - [X] double frexp(double value, int *exp);
+  - [X] double ldexp(double x, int exp);
+  - [X] double log(double x);
+  - [X] double log10(double x);
+  - [X] double pow(double x, double y);
+  - [X] double sin(double x);
+  - [X] double sinh(double x);
+  - [X] double sqrt(double x);
+  - [X] double tan(double x);
+  - [X] double tanh(double x);
+
+* TODO Time.h [0/3]
+
+** TODO FORMAT CONVERSION [0/7]
+   - [ ] char *asctime (const struct tm *__tp);
+   - [ ] char *ctime (const time_t *__timer);
+   - [ ] size_t strftime (char *__restrict __s, size_t __maxsize, const char *__restrict __format, const struct tm *__restrict __tp);                
+   - [ ] char *strptime (const char *__restrict __s, const char *__restrict __fmt, struct tm *__tp);
+   - [ ] tm *gmtime (const time_t *__timer);
+   - [ ] tm *localtime (const time_t *__timer);
+   - [ ] time_t mktime (struct tm *__tp);
+
+** TODO CONSTANTS [0/1]
+   - [ ] CLOCKS_PER_SEC
+
+** TODO DATYPES [0/4]
+   - [ ] clock_t
+   - [ ] time_t
+   - [ ] struct tm
+   - [ ] struct timespec
+
+* TODO Ctype.h [0/26]
+   - [ ] int isalnum(int c);
+   - [ ] int isalpha(int c);
+   - [ ] int iscntrl(int c);
+   - [ ] int isdigit(int c);
+   - [ ] int isgraph(int c);
+   - [ ] int islower(int c);
+   - [ ] int isprint(int c);
+   - [ ] int ispunct(int c);
+   - [ ] int isspace(int c);
+   - [ ] int isupper(int c);
+   - [ ] int isxdigit(int c);
+   - [ ] int isascii(int c);
+   - [ ] int isblank(int c);
+   - [ ] int isalnum_l(int c, locale_t locale);
+   - [ ] int isalpha_l(int c, locale_t locale);
+   - [ ] int isblank_l(int c, locale_t locale); 
+   - [ ] int iscntrl_l(int c, locale_t locale); 
+   - [ ] int isdigit_l(int c, locale_t locale); 
+   - [ ] int isgraph_l(int c, locale_t locale); 
+   - [ ] int islower_l(int c, locale_t locale); 
+   - [ ] int isprint_l(int c, locale_t locale); 
+   - [ ] int ispunct_l(int c, locale_t locale); 
+   - [ ] int isspace_l(int c, locale_t locale); 
+   - [ ] int isupper_l(int c, locale_t locale); 
+   - [ ] int isxdigit_l(int c, locale_t locale);
+   - [ ] int isascii_l(int c, locale_t locale); 
+
+* TODO Assert.h [0/1]
+  - [ ] void assert(bool expression);
