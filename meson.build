@@ -1,4 +1,4 @@
-project('lnl', 'c',
+project('monad', 'c',
   version: '0.0.2',
   meson_version: '>=1.1.0',
   default_options: [
@@ -63,8 +63,8 @@ sources = files(
   'src/vesa.c',
   'src/font.c',
   'src/framebuffer.c',
-  'src/LNLISP/lnlisp.c',
-  'src/LNLISP/sexparser.c',
+  'src/monad/monad.c',
+  'src/monad/sexparser.c',
 )
 
 # Include directories

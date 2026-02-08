@@ -1,0 +1,3 @@
+(define (main -> Int)
+  (show "Hello, World\n")
+  (return 0))

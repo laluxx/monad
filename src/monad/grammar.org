@@ -1,0 +1,1668 @@
+#+TITLE: Monad Language Specification
+#+AUTHOR: Laluxx
+#+DATE: 2026-02-06
+
+* Introduction
+
+  Monad is a pragmatic Lisp designed for building completely self-modifiable systems.
+  In Monad, the kernel is the editor and the language. _Everything_ is modifiable while running.
+  The language combines the flexibility of dynamic Lisp with the performance of
+  statically typed systems.  You start with fully dynamic code and add type
+  annotations precisely where performance matters. The type system uses
+  Hindley-Milner inference with support for gradual typing, so you never
+  write more types than necessary.
+
+** Design Philosophy
+
+   Monad follows four core principles:
+
+   1. *Code as Data*
+     Everything in Monad is an S-expression.
+     Your running program is a data structure you can inspect, modify, and execute.
+     There is no barrier between "code" and "data", they are the same thing.
+
+   2. *Gradual Typing*
+     Start dynamic, add types where needed.  The type system never gets in your way during exploration, but gives you C-like performance when you need it.  Types are optional annotations that guide compilation and catch errors, not mandatory declarations.
+
+   3. *No Sacred Ground*
+     The entire system—kernel, drivers, runtime, standard library—is written in Monad.  You can redefine any function, modify any data structure, and hot-patch any subsystem while the system runs.  Nothing is protected or off-limits.
+
+   4. *Pragmatic Performance*
+     When you need bare-metal performance, you can get it without dropping to another language.  Add type annotations, and the compiler generates efficient native code.  Remove them, and you're back to dynamic execution.  The transition is seamless.
+
+* Syntax
+
+** S-Expressions
+
+   Everything in Monad is an S-expression, a list enclosed in parentheses.
+   The first element is the function, and the remaining elements are arguments.
+
+#+begin_src scheme
+(+ 3 3)                    ; => 6
+(* (+ 12 3) (- 5 3))       ; => 7
+'(1 2 3 4)                 ; Code is data, data is code.
+#+end_src
+
+   S-expressions compose naturally.
+   Complex programs are built by nesting simple expressions.
+
+** Comments
+
+   Monad supports several comment styles:
+   #+begin_src scheme
+(define x 42); Inline comment
+
+;; Standard line comment
+
+;;; Section Header (H1)
+;;;; Subsection (H2)
+;;;;; Sub-subsection (H3)
+
+(comment
+  This entire form is ignored.
+  Useful for temporarily disabling code blocks.); => nil
+#+end_src
+
+   The =comment= form evaluates to =nil= and ignores its body.  Use it to comment out large blocks without manually prefixing each line.
+
+** Literals
+
+*** Numbers
+
+#+begin_src scheme
+;; Integers (inferred as Int by default)
+42
+-17
+
+;; Alternative bases
+0xFF               ; Hexadecimal (255)
+0b1010             ; Binary (10)
+0o755              ; Octal (493)
+
+;; Floating-point (inferred as Float by default)
+3.14
+-0.001
+1.0e-10            ; Scientific notation
+#+end_src
+
+*** Strings
+
+#+begin_src scheme
+"hello world"
+
+"Strings can span
+multiple lines
+naturally."
+
+"Escape sequences: \n \t \\ \""
+#+end_src
+
+    Strings are immutable sequences of Unicode characters.
+
+*** Characters
+
+#+begin_src scheme
+'a'
+'λ'
+'\n'               ; Newline
+'\t'               ; Tab
+'\\'               ; Backslash
+#+end_src
+
+    Characters represent a single Unicode code point.
+
+*** Booleans
+
+#+begin_src scheme
+True               ; => True
+False              ; => False
+#+end_src
+
+    Monad uses 'True' and 'False' as boolean literals.  In conditional contexts, 'False' and 'nil' are falsy; everything else is truthy.
+
+* Type System
+
+  Monad uses a Hindley-Milner type system with gradual typing.  Types are optional—the compiler infers them when omitted.  When you add explicit type annotations, the compiler verifies them and uses them to generate optimized code.
+
+** Type Annotation Syntax
+
+   Types are annotated using the =::= operator.
+   The canonical syntax uses square brackets:
+
+#+begin_src scheme
+[x :: Int]
+#+end_src
+
+   For convenience, Monad also accepts a compact syntax without brackets:
+
+#+begin_src scheme
+x::Int
+#+end_src
+
+   Both forms are equivalent.
+   The bracketed form =[x :: Int]= is the official syntax;
+   =x::Int= is _only_ syntactic sugar.
+
+** Variable Definitions
+
+   When defining variables, you can optionally specify their type:
+
+#+begin_src scheme
+;; Inferred type (Int)
+(define x 42)
+
+;; Explicit type (canonical syntax)
+(define [x :: Int] 42)
+
+;; Explicit type (compact syntax)
+(define x::Int 42)
+#+end_src
+
+   Explicitly typed variables are allocated on the stack when their type is known at compile time.
+
+** Function Definitions
+
+   Monad supports two modes for function type annotations: *named parameters* and *positional types*.  You must use one mode consistently within a single function—mixing is not allowed.
+
+*** Mode 1: Named Parameters
+
+    In named parameter mode, every parameter has a name.  Type annotations are optional.
+
+#+begin_src scheme
+;; Fully inferred
+(define (add x y)
+  (+ x y))
+
+;; Named parameters with return type only
+(define (add x y -> Int)
+  (+ x y))
+
+;; Explicit typed parameters (canonical)
+(define (add [x :: Int] -> [y :: Int])
+  (+ x y))
+
+;; Explicit typed with return type (canonical)
+(define (add [x :: Int] -> [y :: Int] -> Int)
+  (+ x y))
+#+end_src
+
+The arrow '->' separates parameters and marks the return type.  This syntax reflects Monad's curried semantics: each '->' represents a function return.
+
+*** Mode 2: Positional Types
+
+    In positional mode, you specify only types, not parameter names.  Monad binds these types to free variables in the function body, in order of first appearance.
+
+#+begin_src scheme
+;; Positional types, inferred return
+(define (add Int -> Int)
+  (+ x y))
+;; Binds: x :: Int, y :: Int
+;; Return type inferred
+
+;; Positional types with explicit return type
+(define (add Int -> Int -> Int)
+  (+ x y))
+;; Binds: [x :: Int], [y :: Int], returns Int
+#+end_src
+
+    Positional mode is concise but requires care: the order of types must match the order in which variables first appear in the function body.
+
+*** Choosing a Mode
+
+Use *named parameters* when:
+- You want self-documenting code
+- Parameter order might be unclear
+- You're writing a public API
+
+Use *positional types* when:
+- The function is short and obvious
+- You're prototyping quickly
+- Variable names don't add clarity
+
+You cannot mix named and positional modes in the same function.
+Pick one and use it consistently.
+
+** Primitive Types
+
+Monad provides a small set of primary types for everyday use,
+and sized types for systems programming.
+
+*** Primary Types
+
+Use these by default:
+
+#+begin_src scheme
+Int                ; Platform-native integer (typically 64-bit)
+Float              ; Double-precision floating point (64-bit)
+Bool               ; True or False
+Char               ; Unicode character
+String             ; Immutable Unicode string
+Void               ; No return value
+#+end_src
+
+These types are portable and sufficient for most programs.  The compiler chooses efficient representations based on your platform.
+
+*** Sized Types
+
+TODO Pointer types
+Use these only when you need precise control over memory layout or performance:
+
+#+begin_src scheme
+;; Signed integers
+I8 I16 I32 I64 I128
+
+;; Unsigned integers
+U8 U16 U32 U64 U128
+
+;; Floating-point
+F32                ; Single precision (32-bit)
+F64                ; Double precision (64-bit)
+#+end_src
+
+Sized types are essential for:
+- FFI (calling C libraries)
+- Network protocols
+- Binary file formats
+- Performance-critical kernel code
+
+For application code, prefer the primary types.  They make your code more portable and easier to refactor.
+
+** Type Inference
+
+Monad uses Hindley-Milner type inference.  When you omit type annotations, the compiler infers the most general type possible.
+
+#+begin_src scheme
+;; Fully inferred
+(define (double x)
+  (* x 2))
+;; Inferred type: Int -> Int
+
+;; Polymorphic inference
+(define (identity x) x)
+;; Inferred type: a -> a (works for any type 'a')
+
+;; Constrained inference
+(define (sum-list xs)
+  (if (empty? xs)
+      0
+      (+ (car xs) (sum-list (cdr xs)))))
+;; Inferred type: (List Int) -> Int
+#+end_src
+
+You can always query the inferred type of any expression using the ':type' command in the REPL.
+
+** Gradual Typing in Practice
+
+Start with dynamic code:
+
+#+begin_src scheme
+(define (process-data data)
+  (map transform (filter valid? data)))
+#+end_src
+
+Profile and find a bottleneck.  Add types to the hot path:
+
+#+begin_src scheme
+(define (process-data [data :: List Int])
+  (map transform (filter valid? data)))
+
+(define (transform [x :: Int] -> Int)
+  (* x x))
+#+end_src
+
+The typed functions compile to efficient native code.  The rest remains dynamic.  You never have to annotate the entire program—only the parts that matter.
+
+* Arrays
+
+#+begin_src scheme
+[1 x 3 4]       ; => [1 2 3 4]        ; Array literal.
+'[1 x 3 4]      ; => [1 x 3 4]        ; Quoted array literal.
+(array 1 2 3 4) ; => [1 2 3 4]        ; Using constructor.
+[1 (+ 1 1) 3]   ; => [1 2 3]          ; At any time you can write
+[(factorial 5)] ; => [120]            ; expressions inside arrays.
+(define [buffer :: [Int 4096]])       ; Inferred Array type because of inner [..] (fixed size)
+(define [buffer :: [Int (* 128 32)]]) ; Same as the one above.
+(define [buffer :: [Int]])            ; Inferred as dynamyc array because of missing size.
+(define [nums :: [Int 4]] [1..4])     ; Initialize it right away
+(define [matrix :: [Float [3x3]]])    ; 2D array
+(define [matrix :: [Float [4x4x4]]])  ; 3D array
+
+(index buffer 10)
+(set! (index buffer 10) 0xFF)
+#+end_src
+
+* Algebraic Data Types
+
+  Monad provides two keywords for defining custom types: =data= for [[https://en.wikipedia.org/wiki/Algebraic_data_type][algebraic data types]] and =layout= for C-compatible structures.
+
+** The data Keyword
+
+   The =data= keyword defines algebraic data types—sum types with named constructors.
+   Use these for domain modeling, ASTs, and high-level abstractions where you don't need to control memory layout.
+
+*** Simple Enumerations
+
+    The simplest ADT is an enumeration, a type with several distinct values:
+
+#+begin_src scheme
+;; A type with three constructors
+(data Color
+  Red Green Blue); Implicitly: Red :: Color, Green :: Color, Blue :: Color
+
+;; Usage
+(define [my-color :: Color] Red)  ; Annotated type
+(define my-color Red)             ; Or inferred
+
+(match my-color
+  Red   -> "stop"
+  Green -> "go"
+  Blue  -> "ocean"); The compile enforces exhaustive pattern matching.
+#+end_src
+
+    This is essentially a type-safe enum. =Red=, =Green=, and =Blue= are constant values of type =Color=.
+
+*** Constructors with Data
+
+    The real power of ADTs comes when constructors carry data:
+
+#+begin_src scheme
+;; Maybe type - represents optional values
+(data (Maybe a)
+  (Just a)      ; Just is a constructor: a -> Maybe a
+  Nothing)      ; Nothing is a constant: Maybe a
+
+;; Usage
+(define (safe-head xs)
+  (if (empty? xs)
+      Nothing
+      (Just (car xs))))
+
+;; Pattern matching extracts the value
+(match (safe-head [1 2 3])
+  (Just x) -> x
+  Nothing  -> 0); => 1
+#+end_src
+
+    Here, =Just= is not just a tag, it's a constructor function that takes a value of type =a= and returns a =Maybe a=.
+    The type parameter =a= makes this polymorphic: =Maybe Int=, =Maybe String=, etc.
+
+*** Multiple Type Parameters
+
+    Types can have multiple parameters:
+
+#+begin_src scheme
+;; Either type - represents a value that can be one of two types
+(data (Either a b)
+  (Left a)
+  (Right b))
+
+;; Often used for error handling
+(define (parse-int str)
+  (if (int? str)
+      (Right (string->int str))
+      (Left "Not a valid integer")))
+
+(match (parse-int "42")
+  (Right n)  -> n
+  (Left err) -> (print err) 0)
+#+end_src
+
+*** Recursive Types
+
+    ADTs can reference themselves, enabling tree and list structures:
+
+#+begin_src scheme
+;; Binary tree
+(data (Tree a)
+  (Branch (Tree a) (Tree a))
+  (Leaf a))
+
+;; Example tree
+(define my-tree
+  (Branch
+    (Leaf 1)
+    (Branch (Leaf 2) (Leaf 3))))
+
+;; Recursive function on trees
+(define (count-leaves tree)
+  (match tree
+    (Leaf _)            -> 1
+    (Branch left right) -> (+ (count-leaves left) (count-leaves right))))
+
+(count-leaves my-tree); => 3
+#+end_src
+
+*** Real Example: Expression AST
+
+    Here's a complete example of an expression evaluator:
+
+#+begin_src scheme
+;; Define an expression language
+(data Expr
+  (Lit Int)
+  (Add Expr Expr)
+  (Mul Expr Expr)
+  (Var String))
+
+;; Build an expression: (x + 2) * 3
+(define my-expr
+  (Mul
+    (Add (Var "x") (Lit 2))
+    (Lit 3)))
+
+;; Evaluator
+(define (eval expr env)
+  (match expr
+    (Lit n)     -> n
+    (Add e1 e2) -> (+ (eval e1 env) (eval e2 env))
+    (Mul e1 e2) -> (* (eval e1 env) (eval e2 env))
+    (Var name)  -> (lookup name env)))
+
+;; Evaluate with x = 10
+(eval my-expr [("x" 10)]); => (10 + 2) * 3 = 36
+#+end_src
+
+*** Deriving Type Classes
+
+    The =:derive= clause automatically generates common operations:
+
+#+begin_src scheme
+(data Color
+  Red Green Blue
+  :derive (Eq Show Ord))
+
+;; Now these work automatically:
+(= Red Red)  ; => True    (from Eq)
+(show Green) ; => "Green" (from Show)
+(< Blue Red) ; => False   (from Ord)
+
+;; Available derivations:
+;; Eq      - equality (=, /=)
+;; Ord     - ordering (<, >, <=, >=, compare)
+;; Show    - string conversion (show)
+;; Read    - parsing from string (read)
+;; Enum    - enumeration (succ, pred, range)
+;; Bounded - min/max values (min-bound, max-bound)
+#+end_src
+
+** The layout Keyword
+
+   The =layout= keyword defines C-compatible structures with explicit memory layout.
+   Use these for FFI, kernel code, hardware interfaces, and when you need precise control over memory representation.
+
+*** Basic Structures
+
+#+begin_src scheme
+;; 2D point - 8 bytes (2 × 4-byte floats)
+(layout Point
+  [x :: F32]
+  [y :: F32])
+
+;; Usage
+(define p (Point 3.0 4.0))
+p.x; => 3.0
+p.y; => 4.0
+
+(set! p.x 5.0)
+#+end_src
+
+*** Memory Alignment
+
+    The =:align= directive controls structure alignment in memory:
+
+#+begin_src scheme
+;; Force 16-byte alignment (for SIMD)
+(layout Vec3
+  [x :: F32]
+  [y :: F32]
+  [z :: F32]
+  :align 16)
+
+;; Without :align, the compiler uses natural alignment
+;; (typically the size of the largest field)
+
+;; Why alignment matters:
+;; - SIMD instructions require 16-byte alignment
+;; - Cache line alignment (64 bytes) reduces false sharing
+;; - Hardware devices may require specific alignment
+#+end_src
+
+    Alignment means the structure's starting address in memory must be a multiple of the specified value.
+    For example, =:align 16= ensures the structure starts at addresses like =0x1000=, =0x1010=, =0x1020=, but never =0x1004=.
+
+*** Packed Structures
+
+    The =:packed= directive removes padding between fields:
+
+#+begin_src scheme
+;; Network packet header - no padding
+(layout PacketHeader
+  [magic :: U32]      ; 4 bytes
+  [version :: U8]     ; 1 byte
+  [flags :: U8]       ; 1 byte
+  [length :: U16]     ; 2 bytes
+  :packed)
+;; Total: exactly 8 bytes
+
+;; Without :packed, the compiler might add padding:
+(layout UnpackedHeader
+  [magic :: U32]      ; 4 bytes
+  [version :: U8]     ; 1 byte
+  [padding :: U8]     ; 1 byte (added by compiler)
+  [flags :: U8]       ; 1 byte
+  [padding2 :: U8]    ; 1 byte (added by compiler)
+  [length :: U16])    ; 2 bytes
+;; Total: 10 bytes (with padding for alignment)
+#+end_src
+
+    Use =:packed= when:
+    - Reading binary file formats
+    - Implementing network protocols
+    - Interfacing with hardware registers
+    - Matching C =struct __attribute__((packed))=
+  
+*** Arrays in Structures
+
+#+begin_src scheme
+;; Ethernet MAC address
+(layout MacAddr
+  [bytes :: [U8 6]]
+  :packed)
+
+;; IPv4 address (fixed-size array)
+(layout IPv4
+  [octets :: [U8 4]]
+  :packed)
+
+;; Frame buffer pixel (RGBA)
+(layout Pixel
+  [r :: U8]
+  [g :: U8]
+  [b :: U8]
+  [a :: U8]
+  :align 4)
+#+end_src
+
+*** Real Example: Ethernet Frame
+
+#+begin_src scheme
+;; Ethernet II frame header
+(layout EthernetHeader
+  [dest-mac  :: [U8 6]]
+  [src-mac   :: [U8 6]]
+  [ethertype :: U16]
+  :packed)
+
+;; Parse a raw packet
+(define (parse-ethernet bytes)
+  (let ([header (bytes->EthernetHeader bytes)])
+    (printf "Destination: ~a\n" (show (dest-mac header)))
+    (printf "Source: ~a\n" (show (src-mac header)))
+    (printf "Type: 0x~x\n" (ethertype header))))
+#+end_src
+
+*** Real Example: Kernel Page Table Entry
+
+#+begin_src scheme
+;; x86-64 page table entry (8 bytes)
+(layout PageTableEntry
+  [data :: U64]
+  :align 8)
+
+;; Example with explicit bit manipulation
+(define (make-pte [addr :: U64] -> [writable :: Bool] -> PageTableEntry)
+  (let ([entry 0])
+    (set! entry (bitwise-or entry 1))           ; present bit
+    (when writable
+      (set! entry (bitwise-or entry 2)))        ; writable bit
+    (set! entry (bitwise-or entry (bitwise-and addr 0xFFFFFFFFF000)))
+    (PageTableEntry entry)))
+#+end_src
+
+** Pattern Matching
+
+   Pattern matching is the primary way to work with ADTs. The =match= form uses arrow syntax:
+
+*** Basic Patterns
+
+#+begin_src scheme
+;; Literal patterns
+(match x
+  0 -> "zero"
+  1 -> "one"
+  _ -> "other")
+
+;; Constructor patterns
+(match maybe-val
+  (Just x) -> x
+  Nothing  -> 0)
+
+;; Multiple constructors
+(match shape
+  (Circle r)      -> (* 3.14 r r)
+  (Rectangle w h) -> (* w h))
+#+end_src
+
+*** Nested Patterns
+
+#+begin_src scheme
+;; Deep nesting
+(match nested-maybe
+  (Just (Just x)) -> x
+  (Just Nothing)  -> 0
+  Nothing         -> -1)
+
+;; Lists
+(match xs
+  []           -> "empty"
+  [x]          -> "singleton"
+  [x y|_]      -> "two or more")
+
+;; Trees
+(match tree
+  (Leaf x)            -> x
+  (Branch left right) -> (+ (sum left) (sum right)))
+#+end_src
+
+*** Guards
+
+    Use =when= for conditional patterns:
+
+#+begin_src scheme
+(match x
+  n when (< n 0) -> "negative"
+  0              -> "zero"
+  n when (> n 0) -> "positive")
+
+;; Multiple guards
+(match point
+  (Point x y) when (and (> x 0) (> y 0)) -> "quadrant-1"
+  (Point x y) when (and (< x 0) (> y 0)) -> "quadrant-2"
+  (Point x y) when (and (< x 0) (< y 0)) -> "quadrant-3"
+  (Point x y) when (and (> x 0) (< y 0)) -> "quadrant-4"
+  _                                      -> "on-axis")
+#+end_src
+
+*** Or-Patterns
+
+    Match multiple patterns with the same result:
+
+#+begin_src scheme
+(match color
+  (or Red Orange Yellow) -> "warm"
+  (or Green Blue Purple) -> "cool")
+
+(match status
+  (or Success Pending) -> "continue"
+  (or Error Failed)    -> "abort")
+#+end_src
+
+*** As-Patterns
+
+    Bind the whole value while also destructuring:
+
+#+begin_src scheme
+(match xs
+  all@(Cons x rest) -> (Cons x all)  ; Duplicate first element
+  Nil               -> Nil)
+
+(match tree
+  node@(Branch left right) -> (process node left right)
+  leaf@(Leaf _)            -> (process-leaf leaf))
+#+end_src
+
+** When to Use data vs layout
+
+Use =data= when:
+- Building ASTs, compilers, interpreters
+- Domain modeling (Maybe, Either, Result)
+- You don't care about memory layout
+- You want pattern matching on constructors
+- Recursive data structures (trees, lists)
+- The compiler should choose the best representation
+
+Use =layout= when:
+- FFI with C libraries
+- Network protocols (TCP, UDP, custom)
+- File format parsing (PNG, ELF, PE)
+- Kernel data structures (page tables, descriptors)
+- Hardware registers and memory-mapped I/O
+- SIMD-aligned data for performance
+- You need precise control over every byte
+
+
+* Variables and Binding
+
+** Define
+
+#+begin_src scheme
+; Simple definition
+(define x 42)
+
+; With type
+(define [x :: u32] 42)
+
+; Function definition (shorthand)
+(define (square x)
+  (* x x))
+
+; Function with typed parameters
+(define (square [x :: Int] -> Int)
+  (* x x))
+#+end_src
+
+** Let Bindings
+
+#+begin_src scheme
+; Parallel binding
+(let ([x 10]
+      [y 20])
+  (+ x y))
+
+; Sequential binding (let*)
+(let* ([x 10]
+       [y (+ x 5)])
+  y)
+
+; Recursive binding (letrec)
+(letrec ([factorial
+          (lambda (n)
+            (if (= n 0)
+                1
+                (* n (factorial (- n 1)))))])
+  (factorial 5))
+
+; With types
+(let ([[x :: u32] 10]
+      [[ptr :: *u8] (malloc 256)])
+  ...)
+#+end_src
+
+** Set!
+
+#+begin_src scheme
+; Mutation
+(define x 10)
+(set! x 20)
+
+; Array mutation
+(set! (array-ref arr 5) 42)
+
+; Struct field mutation
+(set! p.x 10)
+(set! (Point-x p) 10)
+#+end_src
+
+* Functions
+
+** Lambda
+
+#+begin_src scheme
+; Anonymous function
+(lambda (x) (* x x))
+
+; With types
+(lambda ([x :: Int] -> Int)
+  (* x x))
+
+; Multiple expressions in body
+(lambda (x y)
+  (print x)
+  (print y)
+  (+ x y))
+#+end_src
+
+** Function Annotations
+
+Annotations control compilation and memory management:
+
+#+begin_src scheme
+; Compile to native code
+(define (fast-add [x :: u32] [y :: u32]) :: u32
+  :compile
+  (+ x y))
+
+; Inline the function
+(define (get-x [p :: Point]) :: f32
+  :inline
+  (Point-x p))
+
+; Disable GC in this function
+(define (interrupt-handler [regs :: *Registers]) :: void
+  :no-gc
+  (handle-interrupt regs))
+
+; No allocations allowed (compiler enforced)
+(define (spinlock-acquire [lock :: *Lock]) :: void
+  :no-alloc
+  (atomic-set! lock #t))
+
+; Unsafe - skip bounds checking, etc.
+(define (fast-memcpy [dst :: *u8] [src :: *u8] [len :: u64]) :: void
+  :unsafe
+  (for ([i :: u64 0 len])
+    (set! (ptr-ref (ptr+ dst i))
+          (ptr-ref (ptr+ src i)))))
+
+; Multiple annotations
+(define (critical-function [x :: u32]) :: u32
+  :compile :inline :no-gc :no-alloc
+  (+ x 1))
+#+end_src
+
+* Control Flow
+
+** If
+
+#+begin_src scheme
+; Basic if
+(if (> x 10)
+    "big"
+    "small")
+
+; If without else (returns void)
+(if (> x 10)
+    (print "big"))
+#+end_src
+
+** When/Unless
+
+#+begin_src scheme
+; When - multiple expressions when condition is true
+(when (> x 10)
+  (print "x is big")
+  (print x))
+
+; Unless - opposite of when
+(unless (= x 0)
+  (print "x is not zero"))
+#+end_src
+
+** Cond
+
+   The =cond= form provides multi-way conditionals with pattern-like syntax.
+   Each clause tests a condition; the first true condition's result is returned.
+
+*** Basic Usage
+
+#+begin_src scheme
+;; Multi-way conditional
+(cond
+  [(= x 0) "zero"]
+  [(< x 0) "negative"]
+  [(> x 0) "positive"])
+
+;; The else clause catches all remaining cases
+(cond
+  [(= x 0) "zero"]
+  [(< x 0) "negative"]
+  [else "positive"])
+
+;; Multi-expression else
+(cond
+  [(critical? x) (alert "Critical!")]
+  [else
+   (log "Normal case")
+   (process x)])
+#+end_src
+
+*** The => Operator
+
+   The ==>= operator passes the test result to a function, avoiding redundant computation.
+
+#+begin_src scheme
+;; Using => to bind the result
+(cond
+  [(find-user id) => (lambda (user)
+                       (printf "Found: ~a\n" (user-name user))
+                       user)]
+  [else (error "User not found")])
+
+;; Without =>, you must compute twice or use let
+(cond
+  [(find-user id)
+   (let ([user (find-user id)])  ; Redundant lookup!
+     (printf "Found: ~a\n" (user-name user))
+     user)]
+  [else (error "User not found")])
+
+;; Compact form with named function
+(define (process-user user)
+  (printf "Found: ~a\n" (user-name user))
+  user)
+
+(cond
+  [(find-user id) => process-user]
+  [else (error "User not found")])
+
+;; Multiple => clauses
+(cond
+  [(lookup 'cache key) => return-cached]
+  [(fetch-from-db key) => (lambda (val)
+                            (cache-it key val)
+                            val)]
+  [else nil])
+#+end_src
+
+   The ==>= operator is especially valuable when:
+   - The test is expensive (database lookup, file I/O)
+   - The test returns a useful value (not just =True= / =False=)
+   - You want to avoid =let= bindings inside =cond= clauses
+
+   When the test expression returns a truthy value, ==>= passes that value as an argument to the following function.
+   If the test returns =False= or =nil=, the clause is skipped.
+
+* Loops
+
+** For Loop
+
+   The =for= form provides iteration over numeric ranges.
+
+*** Basic Ranges
+
+#+begin_src scheme
+;; Basic range: from (inclusive) to (exclusive)
+(for [i 0 10]
+  (print i))  ; Prints 0..9
+
+;; With step
+(for [i 0 100 2]
+  (print i))  ; Prints 0, 2, 4, ... 98
+
+;; Counting down
+(for [i 10 0 -1]
+  (print i))  ; 10, 9, 8, ... 1
+#+end_src
+
+*** Typed Loops
+
+   Add type annotations for performance-critical code:
+
+#+begin_src scheme
+;; Explicit type for tight loops
+(for [[i :: U32] 0 1000]
+  (array-set! arr i (* i i)))
+
+;; The compiler can optimize typed loops more aggressively
+(for [[i :: U64] 0 1000000]
+  (compute i))
+#+end_src
+
+*** Multiple Bindings (Parallel)
+
+   Multiple bindings iterate in lockstep—when any sequence ends, the loop stops.
+
+#+begin_src scheme
+;; Parallel iteration
+(for ([i 0 10]
+      [j 10 20])
+  (print i j))
+;; 0 10, 1 11, 2 12, ... 9 19
+
+;; Different step sizes
+(for ([i 0 10 1]
+      [j 0 20 2])
+  (print i j))
+;; 0 0, 1 2, 2 4, ... 9 18
+#+end_src
+
+*** Nested Loops
+
+   Use =for*= for nested ([[https://en.wikipedia.org/wiki/Cartesian_product][Cartesian product]]) iteration:
+
+#+begin_src scheme
+;; All combinations
+(for* ([i 0 3]
+       [j 0 3])
+  (print i j))
+;; 0 0, 0 1, 0 2, 1 0, 1 1, 1 2, 2 0, 2 1, 2 2
+
+;; This is equivalent to manual nesting:
+(for [i 0 3]
+  (for [j 0 3]
+    (print i j)))
+#+end_src
+
+*** Comprehensions
+
+   Collect results instead of executing for side effects:
+
+#+begin_src scheme
+;; Build a list
+(for/list [i 0 10]
+  (* i i)); => (0 1 4 9 16 25 36 49 64 81)
+
+;; Build an array (for performance)
+(for/array [i 0 100]
+  (* i i))
+
+;; Reduce to single value
+(for/sum [i 1 11]
+  i)
+;; => 55
+
+;; Other reductions
+(for/product [i 1 6] i)       ; => 120 (factorial of 5)
+(for/and [i 0 10] (< i 100))  ; => True
+(for/or [i 0 10] (= i 5))     ; => True
+#+end_src
+
+*** Early Exit
+
+#+begin_src scheme
+;; Break with a return value
+(for [i 0 1000]
+  (when (= (array-ref arr i) target)
+    (break i)))  ; Returns i
+
+;; Continue to next iteration
+(for [i 0 100]
+  (when (even? i)
+    (continue))
+  (print i))  ; Only odd numbers
+
+;; Break from nested loops
+(for* ([i 0 10]
+       [j 0 10])
+  (when (= (* i j) 42)
+    (break (list i j))))  ; Returns [6 7]
+#+end_src
+
+** Iter - Collection Iteration
+
+   The =iter= form iterates over collections (lists, arrays, hash tables).
+
+*** Basic Iteration
+
+#+begin_src scheme
+;; Iterate over a list
+(iter [x my-list]
+  (print x))
+
+;; Iterate over an array
+(iter [elem my-array]
+  (process elem))
+
+;; Iterate over a hash table
+(iter [kv my-hash]
+  (printf "~a: ~a\n" (car kv) (cdr kv)))
+#+end_src
+
+*** With Index
+
+#+begin_src scheme
+;; Get both element and index
+(iter [x my-list] [i 0]
+  (printf "~a: ~a\n" i x))
+
+;; Useful for arrays
+(iter [elem my-array] [idx 0]
+  (when (valid? elem)
+    (array-set! output idx elem)))
+#+end_src
+
+*** Multiple Collections (Parallel)
+
+#+begin_src scheme
+;; Zip two lists
+(iter ([x xs]
+       [y ys])
+  (print (+ x y)))
+
+;; Process pairs
+(iter ([name names]
+       [age ages])
+  (printf "~a is ~a years old\n" name age))
+#+end_src
+
+*** Nested Iteration
+
+#+begin_src scheme
+;; Manual nesting for Cartesian product
+(iter [x xs]
+  (iter [y ys]
+    (print (list x y))))
+
+;; Or use for* if both are ranges
+(for* ([i 0 (length xs)]
+       [j 0 (length ys)])
+  (print (list (array-ref xs i) (array-ref ys j))))
+#+end_src
+
+*** Early Exit
+
+#+begin_src scheme
+;; Break with return value
+(iter [x my-list]
+  (when (= x target)
+    (break x)))
+
+;; Continue to next element
+(iter [x my-list]
+  (when (invalid? x)
+    (continue))
+  (process x))
+#+end_src
+
+** When to Use for vs iter
+
+   Use =for= when:
+   - Iterating over numeric ranges
+   - You need precise control over indices
+   - Performance-critical loops with known bounds
+
+   Use =iter= when:
+   - Iterating over collections (lists, arrays, hash tables)
+   - You don't need the index
+   - Working with abstract data structures
+
+#+begin_src scheme
+;; Use for for this:
+(for [i 0 (array-length arr)]
+  (array-set! arr i 0))
+
+;; Use iter for this:
+(iter [x my-list]
+  (when (valid? x)
+    (process x)))
+#+end_src
+
+** While Loop
+
+#+begin_src scheme
+; While loop
+(while (< x 100)
+  (set! x (* x 2)))
+#+end_src
+
+** Loop/Recur (Tail Recursion)
+
+#+begin_src scheme
+; Explicit tail recursion
+(loop ([x 0]
+       [sum 0])
+  (if (>= x 10)
+      sum
+      (recur (+ x 1) (+ sum x))))
+#+end_src
+
+* Inline Assembly
+
+  The =asm= form embeds assembly instructions directly in Monad code.
+  Assembly is written as Lisp symbols, not strings, enabling syntax highlighting and tooling.
+
+** Basic Assembly
+
+#+begin_src scheme
+;; Single instruction
+(asm cli)
+(asm hlt)
+(asm nop)
+
+;; Multiple instructions
+(asm
+  push %rbp
+  mov %rsp, %rbp
+  pop %rbp
+)
+
+;; AT&T syntax - commas and % are optional
+(asm mov %rax %rbx)      ; Move rax to rbx
+(asm mov rax rbx)        ; Same (% optional)
+(asm add $10, %rax)      ; Add immediate
+#+end_src
+
+** Assembly with Operands
+
+#+begin_src scheme
+;; Input operands
+(define (outb [port :: U16] [value :: U8])
+  (asm outb %al, %dx
+    :inputs ((al value) (dx port))))
+
+;; Output operands
+(define (inb [port :: U16] -> U8)
+  (asm inb %dx, %al
+    :inputs ((dx port))
+    :outputs ((al U8))))
+
+;; Multiple outputs - return as pair
+(define (rdtsc -> (U32 . U32))
+  (asm rdtsc
+    :outputs ((edx U32) (eax U32))))
+;; Returns (high . low)
+
+;; Or combine in assembly to return single value
+(define (rdtsc-combined -> U64)
+  (asm rdtsc
+       shl $32, %rdx
+       or %rdx, %rax
+    :outputs ((rax U64))))
+
+;; Division with quotient and remainder
+(define (divmod [a :: U64] [b :: U64] -> (U64 . U64))
+  (asm xor %rdx, %rdx       ; Clear rdx
+       div %rbx
+    :inputs ((rax a) (rbx b))
+    :outputs ((rax U64)     ; quotient
+              (rdx U64))))  ; remainder  => (quotient . remainder)
+#+end_src
+
+** Memory Operands
+
+   Use parentheses for memory addressing (AT&T syntax):
+
+#+begin_src scheme
+;; Load from memory
+(asm mov (%rax), %rbx)  ; [rax] -> rbx
+
+;; With offset
+(asm mov 8(%rsp), %rax) ; [rsp+8] -> rax
+
+;; Complex addressing
+(asm mov 16(%rax, %rbx, 8), %rcx)  ; [rax + rbx*8 + 16] -> rcx
+#+end_src
+
+** Volatile Assembly
+
+#+begin_src scheme
+;; Prevent optimization
+(asm cli :volatile)
+
+;; Memory barriers
+(asm mfence
+  :volatile
+  :clobbers (memory))
+#+end_src
+
+* Foreign Function Interface (FFI)
+
+  Monad can call C libraries directly using the =include= form.
+  C headers are parsed at compile time, and functions become available as if they were native Monad functions.
+
+** Including C Headers
+
+#+begin_src scheme
+;; Include standard C library
+(include <stdio.h>)
+(include <stdlib.h>)
+(include <string.h>)
+
+;; Now use C functions directly
+(printf "Hello from C: %d\n" 42)
+(define ptr (malloc 1024))
+(memset ptr 0 1024)
+(free ptr)
+#+end_src
+
+** Type Mapping
+
+   C types automatically map to Monad types:
+
+#+begin_src scheme
+;; C type          Monad type
+;; --------        ----------
+;; void            Void
+;; char            Char
+;; unsigned char   U8
+;; short           I16
+;; unsigned short  U16
+;; int             Int
+;; unsigned int    U32
+;; long            I64
+;; unsigned long   U64
+;; float           Float
+;; double          F64
+;; void*           *Void
+;; char*           *Char
+;; int*            *Int
+;; struct foo      (layout equivalent)
+#+end_src
+
+** C Structures
+
+   C structs become =layout= types automatically:
+
+#+begin_src scheme
+;; C header contains:
+;; struct Point {
+;;   float x;
+;;   float y;
+;; };
+
+(include "point.h")
+
+;; Now Point is available as a layout
+(define p (Point 3.0 4.0))
+(printf "Point: (%f, %f)\n" p.x p.y)
+#+end_src
+
+** Custom C Libraries
+
+#+begin_src scheme
+;; Include your own headers
+(include "mylib.h")
+
+;; Link against the library (compiler flag or in code)
+(link "mylib")
+
+;; Use functions
+(my-custom-function arg1 arg2)
+#+end_src
+
+** Type Safety
+
+   Monad enforces type safety at the FFI boundary:
+
+#+begin_src scheme
+(include <stdlib.h>)
+
+;; OK - correct types
+(define [ptr :: *U8] (malloc 256))
+
+;; ERROR - type mismatch
+(define [x :: Int] (malloc 256))  ; malloc returns (* Void), not Int
+
+;; Type conversions when needed
+(define [ptr :: (* U8)] (cast (malloc 256)))
+#+end_src
+
+** Variadic Functions
+
+   C variadic functions (like =printf=) work naturally:
+
+#+begin_src scheme
+(include <stdio.h>)
+
+(printf "int: %d, float: %f, string: %s\n"
+        42
+        3.14
+        "hello")
+#+end_src
+
+** Callbacks (Passing Monad Functions to C)
+
+#+begin_src scheme
+(include <stdlib.h>)
+
+;; Define a comparison function for qsort
+(define (compare-ints [a :: *Void] [b :: *Void] -> I32)
+  (let ([x (deref (cast a *I32))]
+        [y (deref (cast b *I32))])
+    (- x y)))
+
+;; Use it with C's qsort
+(define arr [5 2 8 1 9])
+(qsort arr 5 (sizeof I32) compare-ints)
+;; arr is now sorted
+#+end_src
+
+** Macros and Defines
+
+   C preprocessor macros become Monad constants:
+
+#+begin_src scheme
+(include <limits.h>)
+
+INT_MAX   ; Available as constant
+UINT_MAX  ; Available as constant
+
+(include <errno.h>)
+
+EINVAL    ; Error codes available
+ENOMEM
+#+end_src
+
+** Full Example: Using Raylib
+
+#+begin_src scheme
+(include <raylib.h>)
+
+(define sw 1920)
+(define sh 1080)
+
+(define (main -> I32)
+  (InitWindow sw sh "Title")
+  (while (not (WindowShouldClose))
+    (BeginDrawing)
+    (ClearBackground BLACK)
+    (DrawText "Hello Raylib!" {sw / 2} {sh / 2} 20 LIGHTGRAY)
+    (EndDrawing)
+    )
+  (CloseWindow 0)
+  (return 0)
+)
+#+end_src
+
+** Implementation Notes
+
+   The compiler parses C headers using =libclang= or a custom C parser.
+   
+   - Function signatures are extracted and typed
+   - Struct definitions become =layout= types
+   - Macros and enums become constants
+   - Type checking happens at compile time
+   
+   No runtime overhead, C functions are called directly with the C ABI.
+
+
+
+* Macros
+
+** Quote and Quasiquote
+
+#+begin_src scheme
+; Quote - return code as data
+(quote (+ 1 2))   ; returns the list (+ 1 2), not 3
+'(+ 1 2)          ; shorthand
+
+; Quasiquote - quote with interpolation
+`(+ 1 ,(* 2 3))   ; returns (+ 1 6)
+
+; Unquote-splicing
+`(1 ,@(list 2 3) 4)   ; returns (1 2 3 4)
+#+end_src
+
+** Defmacro
+
+#+begin_src scheme
+; Define a macro
+(defmacro when (condition . body)
+  `(if ,condition
+       (begin ,@body)))
+
+; Using it
+(when (> x 10)
+  (print "big")
+  (print x))
+; Expands to:
+; (if (> x 10)
+;     (begin
+;       (print "big")
+;       (print x)))
+
+; More complex macro
+(defmacro for-range (var start end . body)
+  `(let loop ([,var ,start])
+     (when (< ,var ,end)
+       ,@body
+       (loop (+ ,var 1)))))
+#+end_src
+
+** Syntax Rules (Hygienic Macros)
+
+#+begin_src scheme
+; Pattern-based macros
+(define-syntax when
+  (syntax-rules ()
+    [(when condition body ...)
+     (if condition
+         (begin body ...))]))
+
+; Multiple patterns
+(define-syntax my-let
+  (syntax-rules ()
+    [(my-let () body ...)
+     (begin body ...)]
+    [(my-let ([var val] rest ...) body ...)
+     ((lambda (var)
+        (my-let (rest ...) body ...))
+      val)]))
+#+end_src
+
+* Modules and Namespaces
+
+  Monad organizes code into modules with explicit exports and imports.
+  Module names use dot notation and map to filesystem paths.
+  
+  The =module= declaration appears at the top of a file and specifies which definitions are public.
+  It does not wrap the file contents—it's just metadata.
+
+** Defining Modules
+
+#+begin_src scheme
+;; File: kernel/memory.m
+;; Module declaration with explicit exports
+(module kernel.memory
+  [alloc-pagefree-page map-page])
+
+;; Private definitions (not in export list)
+(define page-bitmap ...)
+(define (internal-helper -> Void) ...)
+
+;; Public definitions (in export list)
+(define (alloc-page -> *Page)
+  ...)
+
+(define (free-page [p :: *Page] -> Void)
+  ...)
+
+(define (map-page [vaddr :: U64] [paddr :: U64] -> Void)
+  ...)
+#+end_src
+
+#+begin_src scheme
+;; File: utils/math.monad
+;; Export everything with [_]
+(module utils.math [_])
+
+(define (square [x :: Int] -> Int)
+  (* x x))
+
+(define (cube [x :: Int] -> Int)
+  (* x x x))
+
+(define (sqrt [x :: Float] -> Float)
+  ...)
+;; All definitions are exported
+#+end_src
+
+#+begin_src scheme
+;; File: kernel/internal.monad
+;; Private module - no exports
+(module kernel.internal [])
+
+(define secret-data ...)
+(define (internal-only -> Void)
+  ...)
+;; Nothing is exported - module is internal only
+#+end_src
+
+** Importing Modules
+
+#+begin_src scheme
+;; Import all exports into current namespace
+(import kernel.memory)
+(alloc-page); Can use directly
+
+;; Import with namespace alias
+(import kernel.process :as proc)
+(proc:create-process ...)
+(proc:kill-process ...)
+
+;; Selective import (only specified names)
+(import kernel.scheduler [schedule yield])
+(schedule)  ; Available
+(idle)      ; ERROR: not imported
+
+;; Multiple imports
+(import kernel.memory
+        kernel.process :as proc
+        kernel.scheduler [schedule yield])
+#+end_src
+
+** Module Name Resolution
+
+   Module names map to filesystem paths:
+
+#+begin_src scheme
+kernel.memory      ; → kernel/memory.monad
+kernel.process     ; → kernel/process.monad
+drivers.net.e1000  ; → drivers/net/e1000.monad
+std.collections    ; → std/collections.monad
+#+end_src
+
+   The =module= declaration at the top of each file must match its filesystem location:
+
+#+begin_src scheme
+;; File: kernel/memory.monad
+(module kernel.memory [...])  ; ✓ Correct
+
+;; File: kernel/memory.monad
+(module drivers.disk [...])   ; ✗ Error: module name doesn't match path
+#+end_src
+
+** Using Module Functions
+
+#+begin_src scheme
+;; After unqualified import
+(import kernel.memory)
+(alloc-page)
+(free-page p)
+
+;; After aliased import
+(import kernel.process :as proc)
+(proc:create-process ...)
+
+;; Selective import
+(import kernel.scheduler [schedule])
+(schedule)  ; Works
+(yield)     ; ERROR: not imported
+#+end_src
+
+** Module Export Patterns
+
+#+begin_src scheme
+;; Explicit exports (most common)
+(module mylib [foo bar baz])
+
+;; Export everything
+(module utils [_])
+
+;; Export nothing (internal/private module)
+(module secrets [])
+#+end_src
+
+* Attributes and Metadata
+
+Every definition can have metadata attached:
+
+#+begin_src scheme
+; With documentation
+(define (factorial [n :: U32] -> U32)
+  :doc "Compute n factorial"
+  :examples '((factorial 5) => 120)
+  (if (= n 0)
+      1
+      (* n (factorial (- n 1)))))
+
+; With custom metadata
+(define my-function
+  :author kernel-dev
+  :version 1.0
+  (lambda (x) ...))
+
+; Query metadata at runtime
+(metadata factorial :doc)
+#+end_src
+

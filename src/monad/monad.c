@@ -4,7 +4,7 @@
  * LNLISP - Minimal Scheme interpreter for LNL Kernel
  */
 
-#include "lnlisp.h"
+#include "monad.h"
 #include "sexparser.h"
 #include "../cursor.h"
 
@@ -710,7 +710,7 @@ void lnlisp_init(void) {
     env_define(global_env, "cdr", lnl_builtin(prim_cdr));
     env_define(global_env, "list", lnl_builtin(prim_list));
 
-    print("LNLISP v0.0.1\n");
+    print("MONADLISP v0.0.1\n");
 }
 
 void lnlisp_repl(void) {

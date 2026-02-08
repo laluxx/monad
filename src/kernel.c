@@ -10,7 +10,7 @@
 #include "vga.h"
 #include "framebuffer.h"
 #include "font.h"
-#include "LNLISP/lnlisp.h"
+#include "monad/monad.h"
 
 struct idt_entry idt[256];
 struct idt_ptr idtp;
@@ -216,7 +216,7 @@ void kernel_main(void) {
     font_init();
     clear_screen();
 
-    print_colored("LNL Kernel v0.0.7 (Framebuffer)\n", COLOR_CYAN, COLOR_BLACK);
+    print_colored("Monad Kernel v0.0.7 (Framebuffer)\n", COLOR_CYAN, COLOR_BLACK);
     print_colored("================================\n\n", COLOR_CYAN, COLOR_BLACK);
 
     print("FB: ");
@@ -230,7 +230,7 @@ void kernel_main(void) {
     // VGA text mode
     clear_screen();
 
-    print("LNL Kernel v0.0.7 (VGA Text)\n");
+    print("Monad Kernel v0.0.7 (VGA Text)\n");
     print("============================\n\n");
 #endif
 
